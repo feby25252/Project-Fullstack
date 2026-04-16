@@ -1,3 +1,5 @@
+ feature/product
+
  feature/checkout
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -18,6 +20,7 @@ app.use('/api/orders', orderRoutes);
 app.use((req, res) => {
     res.status(404).json({ message: 'Resource API tidak ditemukan.' });
 
+ develop
 const express = require("express");
 const cors = require("cors");
 
@@ -26,9 +29,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+ feature/product
+
 app.get("/", (req, res) => {
   res.send("API is running...");
  develop
 });
 
+ develop
 module.exports = app;

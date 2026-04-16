@@ -1,3 +1,5 @@
+ feature/product
+
  feature/checkout
 const mysql = require('mysql2/promise');
 
@@ -17,17 +19,32 @@ const pool = mysql.createPool({
 
 module.exports = pool;
 
+ develop
 const mysql = require("mysql2");
 
 const db = mysql.createConnection({
   host: "localhost",
   user: "root",
+ feature/product
+  password: "",
+  database: "fullstack_db"
+
   password: "sapphire291106@_",
   database: "ecommerce_db"
+ develop
 });
 
 db.connect((err) => {
   if (err) {
+ feature/product
+    console.log("Database connection error:", err);
+    return;
+  }
+  console.log("MySQL Connected!");
+});
+
+module.exports = db;
+
     console.log("DB Error:", err);
   } else {
     console.log("Database Connected!");
@@ -36,3 +53,4 @@ db.connect((err) => {
 
 module.exports = db;
 develop
+ develop
