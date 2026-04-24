@@ -29,7 +29,7 @@ const db = mysql.createConnection({
   password: "",
   database: "fullstack_db"
 
-  password: "sapphire291106@_",
+  password: "",
   database: "ecommerce_db"
  develop
 });
