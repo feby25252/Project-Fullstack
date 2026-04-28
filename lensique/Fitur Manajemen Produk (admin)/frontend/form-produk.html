@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Produk - Admin Lensique</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/public/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- ======== NAVBAR ======== -->
+    <nav class="navbar navbar-expand-lg navbar-lensique sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="bi bi-eyeglasses"></i> Lens<span>ique</span></a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto" id="navbarRight"></ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ======== FORM PRODUK ======== -->
+    <div class="container py-4">
+        <div class="card-container" style="max-width: 800px; margin: 0 auto;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 id="formTitle">
+                    <i class="bi bi-plus-circle" style="color: #C77986;"></i> Tambah Produk Baru
+                </h3>
+                <a href="/admin/produk" class="btn btn-lensique-outline btn-sm">
+                    <i class="bi bi-arrow-left"></i> Kembali
+                </a>
+            </div>
+
+            <form id="productForm" class="form-lensique" enctype="multipart/form-data">
+                <!-- Nama Produk -->
+                <div class="mb-3">
+                    <label for="name" class="form-label">Nama Produk *</label>
+                    <input type="text" class="form-control" id="name" placeholder="Nama produk" required>
+                </div>
+
+                <!-- Deskripsi -->
+                <div class="mb-3">
+                    <label for="description" class="form-label">Deskripsi</label>
+                    <textarea class="form-control" id="description" rows="4" placeholder="Deskripsi produk..."></textarea>
+                </div>
+
+                <div class="row">
+                    <!-- Harga -->
+                    <div class="col-md-6 mb-3">
+                        <label for="base_price" class="form-label">Harga (Rp) *</label>
+                        <input type="number" class="form-control" id="base_price" placeholder="0" min="0" required>
+                    </div>
+
+                    <!-- Stok -->
+                    <div class="col-md-6 mb-3">
+                        <label for="stock" class="form-label">Stok</label>
+                        <input type="number" class="form-control" id="stock" placeholder="0" min="0" value="0">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Kategori -->
+                    <div class="col-md-6 mb-3">
+                        <label for="category_id" class="form-label">Kategori</label>
+                        <select class="form-select" id="category_id">
+                            <option value="">Pilih Kategori</option>
+                        </select>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="col-md-6 mb-3">
+                        <label for="is_active" class="form-label">Status</label>
+                        <select class="form-select" id="is_active">
+                            <option value="1">Aktif</option>
+                            <option value="0">Nonaktif</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Upload Gambar -->
+                <div class="mb-3">
+                    <label for="images" class="form-label">Gambar Produk</label>
+                    <input type="file" class="form-control" id="images" name="images" multiple accept="image/*">
+                    <small class="text-muted">Maksimal 5 gambar. Format: JPG, PNG, WEBP. Maks 5MB per file.</small>
+                </div>
+
+                <!-- Preview Gambar -->
+                <div class="mb-3" id="imagePreview" style="display: none;">
+                    <label class="form-label">Preview Gambar</label>
+                    <div class="d-flex flex-wrap gap-2" id="previewContainer"></div>
+                </div>
+
+                <!-- Gambar Existing (untuk mode edit) -->
+                <div class="mb-3" id="existingImages" style="display: none;">
+                    <label class="form-label">Gambar Saat Ini</label>
+                    <div class="d-flex flex-wrap gap-2" id="existingImagesContainer"></div>
+                </div>
+
+                <!-- Tombol Submit -->
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-lensique flex-grow-1" id="submitBtn">
+                        <i class="bi bi-check-lg"></i> Simpan Produk
+                    </button>
+                    <a href="/admin/produk" class="btn btn-secondary" style="border-radius: 25px;">Batal</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer class="footer-lensique">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lensique. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/public/js/app.js"></script>
+    <script>
+        // ============================================
+        // SCRIPT HALAMAN FORM PRODUK (ADMIN)
+        // ============================================
+
+        // Cek akses admin
+        if (!isLoggedIn() || !isAdmin()) {
+            showAlert('Akses ditolak.', 'danger');
+            setTimeout(() => window.location.href = '/', 1500);
+        }
+
+        let editMode = false;
+        let editId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCategories();
+
+            // Cek apakah mode edit (ada parameter id di URL)
+            const urlParams = new URLSearchParams(window.location.search);
+            editId = urlParams.get('id');
+            if (editId) {
+                editMode = true;
+                document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil" style="color: #C77986;"></i> Edit Produk';
+                document.getElementById('submitBtn').innerHTML = '<i class="bi bi-check-lg"></i> Update Produk';
+                await loadProductData(editId);
+            }
+        });
+
+        // Muat daftar kategori
+        async function loadCategories() {
+            const data = await fetchAPI('/admin/produk/kategori');
+            if (data.success) {
+                const select = document.getElementById('category_id');
+                data.data.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat.id;
+                    opt.textContent = cat.name;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        // Muat data produk untuk mode edit
+        async function loadProductData(id) {
+            const data = await fetchAPI(`/admin/produk/${id}`);
+            if (data.success) {
+                const p = data.data;
+                document.getElementById('name').value = p.name;
+                document.getElementById('description').value = p.description || '';
+                document.getElementById('base_price').value = p.base_price;
+                document.getElementById('stock').value = p.stock;
+                document.getElementById('category_id').value = p.category_id || '';
+                document.getElementById('is_active').value = p.is_active;
+
+                // Tampilkan gambar existing
+                if (p.images && p.images.length > 0) {
+                    const container = document.getElementById('existingImagesContainer');
+                    document.getElementById('existingImages').style.display = 'block';
+                    container.innerHTML = p.images.map(img => `
+                        <div class="position-relative" id="existImg-${img.id}">
+                            <img src="${img.image_url}" class="rounded-3" 
+                                 style="width: 100px; height: 100px; object-fit: cover;"
+                                 onerror="this.src='/public/img/no-image.svg'">
+                            <button type="button" class="btn btn-danger btn-sm position-absolute" 
+                                    style="top: -5px; right: -5px; border-radius: 50%; width: 24px; height: 24px; padding: 0;"
+                                    onclick="deleteImage(${img.id})">
+                                <i class="bi bi-x" style="font-size: 0.8rem;"></i>
+                            </button>
+                            ${img.is_primary ? '<span class="badge bg-success position-absolute" style="bottom: 5px; left: 5px; font-size: 0.6rem;">Utama</span>' : ''}
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+
+        // Preview gambar yang akan diupload
+        document.getElementById('images').addEventListener('change', function(e) {
+            const files = e.target.files;
+            const container = document.getElementById('previewContainer');
+            const preview = document.getElementById('imagePreview');
+
+            if (files.length > 0) {
+                preview.style.display = 'block';
+                container.innerHTML = '';
+                
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        container.innerHTML += `
+                            <img src="${e.target.result}" class="rounded-3" 
+                                 style="width: 100px; height: 100px; object-fit: cover;">
+                        `;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                preview.style.display = 'none';
+            }
+        });
+
+        // Hapus gambar existing
+        async function deleteImage(imageId) {
+            if (!confirm('Hapus gambar ini?')) return;
+
+            const data = await fetchAPI(`/admin/produk/image/${imageId}`, { method: 'DELETE' });
+            if (data.success) {
+                document.getElementById(`existImg-${imageId}`).remove();
+                showAlert('Gambar dihapus.', 'success');
+            }
+        }
+
+        // Submit form
+        document.getElementById('productForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div> Menyimpan...';
+
+            const formData = new FormData();
+            formData.append('name', document.getElementById('name').value);
+            formData.append('description', document.getElementById('description').value);
+            formData.append('base_price', document.getElementById('base_price').value);
+            formData.append('stock', document.getElementById('stock').value);
+            formData.append('category_id', document.getElementById('category_id').value);
+            formData.append('is_active', document.getElementById('is_active').value);
+
+            // Tambahkan file gambar
+            const files = document.getElementById('images').files;
+            for (let i = 0; i < files.length; i++) {
+                formData.append('images', files[i]);
+            }
+
+            try {
+                const token = getToken();
+                const url = editMode ? `/api/admin/produk/${editId}` : '/api/admin/produk';
+                const method = editMode ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(editMode ? 'Produk berhasil diperbarui!' : 'Produk berhasil ditambahkan!', 'success');
+                    setTimeout(() => window.location.href = '/admin/produk', 1500);
+                } else {
+                    showAlert(data.message || 'Gagal menyimpan produk.', 'danger');
+                }
+            } catch (error) {
+                showAlert('Terjadi kesalahan koneksi.', 'danger');
+            }
+
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = editMode ? '<i class="bi bi-check-lg"></i> Update Produk' : '<i class="bi bi-check-lg"></i> Simpan Produk';
+        });
+    </script>
+</body>
+</html>
