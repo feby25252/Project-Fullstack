@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Lensique</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/public/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- ======== NAVBAR ======== -->
+    <nav class="navbar navbar-expand-lg navbar-lensique sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-eyeglasses"></i> Lens<span>ique</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto" id="navbarRight"></ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ======== FORM LOGIN ======== -->
+    <div class="container">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <i class="bi bi-eyeglasses"></i> Lensique
+            </div>
+            <h2>Masuk ke Akun</h2>
+            <p class="auth-subtitle">Selamat datang kembali! Silakan login.</p>
+
+            <!-- Alert untuk pesan error/sukses -->
+            <div id="alertContainer"></div>
+
+            <form id="loginForm" class="form-lensique">
+                <!-- Input Email -->
+                <div class="mb-3">
+                    <label for="email" class="form-label">
+                        <i class="bi bi-envelope"></i> Email
+                    </label>
+                    <input type="email" class="form-control" id="email" 
+                           placeholder="contoh@email.com" required>
+                </div>
+
+                <!-- Input Password -->
+                <div class="mb-3">
+                    <label for="password" class="form-label">
+                        <i class="bi bi-lock"></i> Password
+                    </label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="password" 
+                               placeholder="Masukkan password" required
+                               style="border-radius: 15px 0 0 15px;">
+                        <button class="btn btn-outline-secondary" type="button" id="togglePassword"
+                                style="border-radius: 0 15px 15px 0; border-color: var(--border-color);">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tombol Login -->
+                <button type="submit" class="btn btn-lensique w-100 mb-3" id="loginBtn">
+                    <i class="bi bi-box-arrow-in-right"></i> Login
+                </button>
+
+                <!-- Link ke halaman register -->
+                <p class="text-center mb-0">
+                    Belum punya akun? 
+                    <a href="/register" style="color: #C77986; font-weight: 600;">Daftar Sekarang</a>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer-lensique">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lensique. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/public/js/app.js"></script>
+    <script>
+        // ============================================
+        // SCRIPT HALAMAN LOGIN
+        // ============================================
+
+        // Toggle tampilkan/sembunyikan password
+        document.getElementById('togglePassword').addEventListener('click', function() {
+            const password = document.getElementById('password');
+            const icon = this.querySelector('i');
+            if (password.type === 'password') {
+                password.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                password.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        });
+
+        // Redirect jika sudah login
+        if (isLoggedIn()) {
+            window.location.href = '/';
+        }
+
+        // Handle submit form login
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const loginBtn = document.getElementById('loginBtn');
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div> Memproses...';
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const data = await fetchAPI('/auth/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (data.success) {
+                    // Simpan token dan data user
+                    setToken(data.data.token);
+                    setUser(data.data.user);
+                    showAlert('Login berhasil! Mengalihkan...', 'success');
+
+                    // Redirect ke halaman utama
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
+                } else {
+                    showAlert(data.message || 'Login gagal.', 'danger');
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Login';
+                }
+            } catch (error) {
+                showAlert('Terjadi kesalahan koneksi.', 'danger');
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Login';
+            }
+        });
+    </script>
+</body>
+</html>
