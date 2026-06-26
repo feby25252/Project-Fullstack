@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil Saya - Lensique</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/public/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- ======== NAVBAR ======== -->
+    <nav class="navbar navbar-expand-lg navbar-lensique sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-eyeglasses"></i> Lens<span>ique</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto" id="navbarRight"></ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ======== KONTEN PROFIL ======== -->
+    <div class="container py-4">
+        <div class="row">
+            <!-- Kolom Kiri: Info User -->
+            <div class="col-md-4 mb-4">
+                <div class="card-container text-center">
+                    <!-- Avatar -->
+                    <div class="mb-3">
+                        <img src="/public/img/default-avatar.svg" 
+                             id="avatarPreview"
+                             class="rounded-circle" 
+                             style="width: 120px; height: 120px; object-fit: cover; border: 4px solid var(--soft-pink);"
+                             alt="Avatar"
+                             onerror="this.src='/public/img/default-avatar.svg'">
+                    </div>
+                    <h4 id="displayName" class="mb-1">-</h4>
+                    <p class="text-muted" id="displayEmail">-</p>
+                    <span class="badge-category" id="displayRole">User</span>
+                </div>
+            </div>
+
+            <!-- Kolom Kanan: Form Edit Profil -->
+            <div class="col-md-8">
+                <div class="card-container">
+                    <h4 class="mb-4">
+                        <i class="bi bi-pencil-square" style="color: #C77986;"></i> Edit Profil
+                    </h4>
+
+                    <form id="profileForm" class="form-lensique" enctype="multipart/form-data">
+                        <!-- Upload Avatar -->
+                        <div class="mb-3">
+                            <label for="avatar" class="form-label">Foto Profil</label>
+                            <input type="file" class="form-control" id="avatar" name="avatar" accept="image/*">
+                            <small class="text-muted">Format: JPG, PNG, WEBP. Maks 2MB.</small>
+                        </div>
+
+                        <!-- Nama Lengkap -->
+                        <div class="mb-3">
+                            <label for="full_name" class="form-label">Nama Lengkap</label>
+                            <input type="text" class="form-control" id="full_name" placeholder="Nama lengkap">
+                        </div>
+
+                        <!-- Username -->
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" placeholder="Username">
+                        </div>
+
+                        <!-- Bio -->
+                        <div class="mb-3">
+                            <label for="bio" class="form-label">Bio</label>
+                            <textarea class="form-control" id="bio" rows="3" placeholder="Ceritakan tentang dirimu..."></textarea>
+                        </div>
+
+                        <!-- Nomor Telepon -->
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">Nomor Telepon</label>
+                            <input type="tel" class="form-control" id="phone" placeholder="08xxxxxxxxxx">
+                        </div>
+
+                        <!-- Alamat -->
+                        <div class="mb-3">
+                            <label for="address" class="form-label">Alamat</label>
+                            <textarea class="form-control" id="address" rows="2" placeholder="Alamat lengkap"></textarea>
+                        </div>
+
+                        <!-- Tombol Simpan -->
+                        <button type="submit" class="btn btn-lensique" id="saveBtn">
+                            <i class="bi bi-check-lg"></i> Simpan Perubahan
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer-lensique">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lensique. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/public/js/app.js"></script>
+    <script>
+        // ============================================
+        // SCRIPT HALAMAN PROFIL USER
+        // ============================================
+
+        // Redirect ke login jika belum login
+        if (!isLoggedIn()) {
+            window.location.href = '/login';
+        }
+
+        // Muat data profil saat halaman dibuka
+        document.addEventListener('DOMContentLoaded', loadProfile);
+
+        // Fungsi memuat data profil dari API
+        async function loadProfile() {
+            try {
+                const data = await fetchAPI('/profile');
+                if (data.success) {
+                    const profile = data.data;
+
+                    // Isi info di kolom kiri
+                    document.getElementById('displayName').textContent = profile.full_name || profile.username;
+                    document.getElementById('displayEmail').textContent = profile.email;
+                    document.getElementById('displayRole').textContent = profile.role_id === 1 ? 'Admin' : 'Member';
+
+                    if (profile.avatar) {
+                        document.getElementById('avatarPreview').src = profile.avatar;
+                    }
+
+                    // Isi form di kolom kanan
+                    document.getElementById('full_name').value = profile.full_name || '';
+                    document.getElementById('username').value = profile.username || '';
+                    document.getElementById('bio').value = profile.bio || '';
+                    document.getElementById('phone').value = profile.phone || '';
+                    document.getElementById('address').value = profile.address || '';
+                }
+            } catch (error) {
+                showAlert('Gagal memuat data profil.', 'danger');
+            }
+        }
+
+        // Preview avatar saat memilih file
+        document.getElementById('avatar').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('avatarPreview').src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Handle submit form update profil
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div> Menyimpan...';
+
+            // Gunakan FormData untuk mengirim data + file
+            const formData = new FormData();
+            formData.append('full_name', document.getElementById('full_name').value);
+            formData.append('username', document.getElementById('username').value);
+            formData.append('bio', document.getElementById('bio').value);
+            formData.append('phone', document.getElementById('phone').value);
+            formData.append('address', document.getElementById('address').value);
+
+            const avatarFile = document.getElementById('avatar').files[0];
+            if (avatarFile) {
+                formData.append('avatar', avatarFile);
+            }
+
+            try {
+                const token = getToken();
+                const response = await fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('Profil berhasil diperbarui!', 'success');
+                    // Update data user di localStorage
+                    const user = getUser();
+                    user.username = document.getElementById('username').value;
+                    setUser(user);
+                    updateNavbar();
+                    loadProfile(); // Reload profil
+                } else {
+                    showAlert(data.message || 'Gagal memperbarui profil.', 'danger');
+                }
+            } catch (error) {
+                showAlert('Terjadi kesalahan koneksi.', 'danger');
+            }
+
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Simpan Perubahan';
+        });
+    </script>
+</body>
+</html>
