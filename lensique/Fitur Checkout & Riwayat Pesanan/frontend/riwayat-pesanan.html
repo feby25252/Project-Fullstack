@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riwayat Pesanan - Lensique</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/public/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- ======== NAVBAR ======== -->
+    <nav class="navbar navbar-expand-lg navbar-lensique sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="bi bi-eyeglasses"></i> Lens<span>ique</span></a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto" id="navbarRight"></ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ======== KONTEN RIWAYAT PESANAN ======== -->
+    <div class="container py-4">
+        <div class="card-container">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3><i class="bi bi-receipt" style="color: #C77986;"></i> Riwayat Pesanan</h3>
+                
+                <!-- Filter Status -->
+                <select class="form-select" id="statusFilter" style="width: auto; border-radius: 15px;" onchange="loadOrders()">
+                    <option value="">Semua Status</option>
+                    <option value="pending">Menunggu</option>
+                    <option value="processing">Diproses</option>
+                    <option value="shipped">Dikirim</option>
+                    <option value="delivered">Diterima</option>
+                    <option value="cancelled">Dibatalkan</option>
+                </select>
+            </div>
+
+            <div id="orderList">
+                <div class="text-center py-5">
+                    <div class="spinner-lensique"></div>
+                    <p class="mt-3 text-muted">Memuat pesanan...</p>
+                </div>
+            </div>
+
+            <!-- Paginasi -->
+            <nav class="mt-3">
+                <ul class="pagination justify-content-center" id="pagination"></ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Modal Detail Pesanan -->
+    <div class="modal fade" id="detailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 24px; border: none;">
+                <div class="modal-header" style="border: none; background: linear-gradient(135deg, var(--soft-pink), var(--baby-blue)); border-radius: 24px 24px 0 0;">
+                    <h5 class="modal-title"><i class="bi bi-receipt-cutoff"></i> Detail Pesanan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="detailContent">
+                    <div class="text-center py-5"><div class="spinner-lensique"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer-lensique">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lensique. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/public/js/app.js"></script>
+    <script>
+        // ============================================
+        // SCRIPT HALAMAN RIWAYAT PESANAN
+        // ============================================
+
+        if (!isLoggedIn()) window.location.href = '/login';
+
+        document.addEventListener('DOMContentLoaded', loadOrders);
+
+        // Muat daftar pesanan
+        async function loadOrders(page = 1) {
+            const container = document.getElementById('orderList');
+            container.innerHTML = '<div class="text-center py-5"><div class="spinner-lensique"></div></div>';
+
+            const status = document.getElementById('statusFilter').value;
+            let url = `/orders/history?page=${page}&limit=10`;
+            if (status) url += `&status=${status}`;
+
+            try {
+                const data = await fetchAPI(url);
+                if (data.success && data.data.length > 0) {
+                    container.innerHTML = data.data.map(order => `
+                        <div class="card-container mb-3" style="padding: 20px; background: var(--white); cursor: pointer;" 
+                             onclick="showOrderDetail(${order.id})">
+                            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                                <div>
+                                    <h6 class="fw-bold mb-1">${order.order_number}</h6>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar3"></i> ${formatTanggal(order.created_at)}
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    ${getStatusBadge(order.status)}
+                                    <p class="fw-bold mt-1 mb-0" style="color: #C77986;">${formatRupiah(order.total_amount)}</p>
+                                </div>
+                            </div>
+                            <div class="mt-2 d-flex flex-wrap gap-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-box-seam"></i> ${order.item_count} item
+                                </small>
+                                <small class="text-muted">
+                                    <i class="bi bi-wallet2"></i> ${order.payment_method || '-'}
+                                </small>
+                                <small class="text-muted">
+                                    <i class="bi bi-credit-card"></i> ${getPaymentBadge(order.payment_status)}
+                                </small>
+                                ${order.tracking_number ? `<small class="text-muted"><i class="bi bi-truck"></i> Resi: ${order.tracking_number}</small>` : ''}
+                            </div>
+                            ${getProgressBar(order.status)}
+                        </div>
+                    `).join('');
+
+                    // Paginasi
+                    const { page: currentPage, totalPages } = data.pagination;
+                    const pag = document.getElementById('pagination');
+                    if (totalPages > 1) {
+                        let html = '';
+                        for (let i = 1; i <= totalPages; i++) {
+                            html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                                <a class="page-link" href="#" onclick="loadOrders(${i})"
+                                   style="${i === currentPage ? 'background: var(--soft-pink); border-color: var(--soft-pink); color: var(--dark-text);' : ''}">${i}</a>
+                            </li>`;
+                        }
+                        pag.innerHTML = html;
+                    } else {
+                        pag.innerHTML = '';
+                    }
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="bi bi-receipt"></i>
+                            <h4>Belum Ada Pesanan</h4>
+                            <p>Kamu belum memiliki riwayat pesanan.</p>
+                            <a href="/katalog" class="btn btn-lensique mt-2">Mulai Belanja</a>
+                        </div>
+                    `;
+                    document.getElementById('pagination').innerHTML = '';
+                }
+            } catch (e) {
+                container.innerHTML = '<p class="text-center text-danger">Gagal memuat pesanan.</p>';
+            }
+        }
+
+        // Helper badge pembayaran
+        function getPaymentBadge(status) {
+            if (!status || status === 'pending') return '<span class="badge bg-warning text-dark">Belum Dibayar</span>';
+            if (status === 'paid') return '<span class="badge bg-success">Lunas</span>';
+            if (status === 'failed') return '<span class="badge bg-danger">Gagal</span>';
+            return '<span class="badge bg-secondary">' + status + '</span>';
+        }
+
+        // Helper progress bar status pesanan
+        function getProgressBar(status) {
+            const steps = [
+                { key: 'pending', label: 'Dipesan' },
+                { key: 'processing', label: 'Diproses' },
+                { key: 'shipped', label: 'Dikirim' },
+                { key: 'delivered', label: 'Selesai' }
+            ];
+            const idx = steps.findIndex(s => s.key === status);
+            if (idx === -1 && status !== 'cancelled') return '';
+            if (status === 'cancelled') {
+                return '<div class="mt-2"><span class="badge bg-danger">Pesanan Dibatalkan</span></div>';
+            }
+            const progress = ((idx + 1) / steps.length) * 100;
+            return `
+                <div class="mt-3">
+                    <div class="progress" style="height: 8px; border-radius: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: ${progress}%; background: linear-gradient(90deg, #C77986, #5DADE2);" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        ${steps.map((s, i) => `<small class="${i <= idx ? 'fw-bold text-dark' : 'text-muted'}" style="font-size:11px">${s.label}</small>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Tampilkan detail pesanan di modal
+        async function showOrderDetail(orderId) {
+            const content = document.getElementById('detailContent');
+            content.innerHTML = '<div class="text-center py-5"><div class="spinner-lensique"></div></div>';
+            new bootstrap.Modal(document.getElementById('detailModal')).show();
+
+            try {
+                const data = await fetchAPI(`/orders/${orderId}`);
+                if (data.success) {
+                    const o = data.data;
+
+                    content.innerHTML = `
+                        <!-- Info Pesanan -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>Nomor Pesanan:</strong> ${o.order_number}</p>
+                                <p class="mb-1"><strong>Tanggal:</strong> ${formatTanggal(o.created_at)}</p>
+                                <p class="mb-1"><strong>Status:</strong> ${getStatusBadge(o.status)}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>Metode Pembayaran:</strong> ${o.payment_method || '-'}</p>
+                                ${o.payment ? `<p class="mb-1"><strong>Status Bayar:</strong> ${getStatusBadge(o.payment.payment_status)}</p>` : ''}
+                                ${o.shipping ? `
+                                <p class="mb-1"><strong>Kurir:</strong> ${o.shipping.courier || '-'}</p>
+                                <p class="mb-1"><strong>No. Resi:</strong> ${o.shipping.tracking_number || 'Belum tersedia'}</p>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <!-- Alamat Pengiriman -->
+                        <div class="p-3 rounded-3 mb-3" style="background: var(--bg-light);">
+                            <strong><i class="bi bi-geo-alt"></i> Alamat Pengiriman:</strong>
+                            <p class="mb-0 mt-1">${o.shipping_address || '-'}</p>
+                        </div>
+
+                        <!-- Item Pesanan -->
+                        <h6 class="fw-bold mb-2">Item Pesanan</h6>
+                        <div class="table-responsive">
+                            <table class="table table-lensique">
+                                <thead>
+                                    <tr>
+                                        <th>Produk</th>
+                                        <th>Harga</th>
+                                        <th>Qty</th>
+                                        <th>Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${o.items.map(item => `
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <img src="${item.image_url || '/public/img/no-image.svg'}" 
+                                                         class="rounded-2" style="width: 40px; height: 40px; object-fit: cover;"
+                                                         onerror="this.src='/public/img/no-image.svg'">
+                                                    ${item.name}
+                                                </div>
+                                            </td>
+                                            <td>${formatRupiah(item.price)}</td>
+                                            <td>${item.quantity}</td>
+                                            <td class="fw-bold">${formatRupiah(item.subtotal)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="3" class="text-end fw-bold">Total:</td>
+                                        <td class="fw-bold" style="color: #C77986; font-size: 1.1rem;">${formatRupiah(o.total_amount)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                content.innerHTML = '<p class="text-center text-danger">Gagal memuat detail pesanan.</p>';
+            }
+        }
+    </script>
+</body>
+</html>
