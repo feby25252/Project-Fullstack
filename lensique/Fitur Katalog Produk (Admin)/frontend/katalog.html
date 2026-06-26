@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Katalog Produk - Lensique</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/public/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- ======== NAVBAR ======== -->
+    <nav class="navbar navbar-expand-lg navbar-lensique sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-eyeglasses"></i> Lens<span>ique</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto" id="navbarRight"></ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ======== HEADER KATALOG ======== -->
+    <section class="hero-section" style="padding: 40px 0;">
+        <div class="container">
+            <h1><i class="bi bi-grid"></i> Katalog Produk</h1>
+            <p>Temukan kacamata yang sempurna untuk gaya dan kebutuhanmu</p>
+        </div>
+    </section>
+
+    <!-- ======== FILTER & PRODUK ======== -->
+    <div class="container py-4">
+        <div class="row">
+            <!-- Sidebar Filter -->
+            <div class="col-lg-3 mb-4">
+                <div class="card-container">
+                    <h5 class="mb-3"><i class="bi bi-funnel" style="color: #C77986;"></i> Filter</h5>
+                    
+                    <!-- Pencarian -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cari Produk</label>
+                        <input type="text" class="form-control" id="searchInput" 
+                               placeholder="Nama produk..." style="border-radius: 15px;">
+                    </div>
+
+                    <!-- Kategori -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Kategori</label>
+                        <select class="form-select" id="categoryFilter" style="border-radius: 15px;">
+                            <option value="">Semua Kategori</option>
+                        </select>
+                    </div>
+
+                    <!-- Urutkan -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Urutkan</label>
+                        <select class="form-select" id="sortFilter" style="border-radius: 15px;">
+                            <option value="">Terbaru</option>
+                            <option value="price_asc">Harga Terendah</option>
+                            <option value="price_desc">Harga Tertinggi</option>
+                            <option value="name_asc">Nama A-Z</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-lensique w-100" onclick="loadProducts()">
+                        <i class="bi bi-search"></i> Terapkan Filter
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grid Produk -->
+            <div class="col-lg-9">
+                <div class="row g-4" id="productGrid">
+                    <div class="text-center py-5">
+                        <div class="spinner-lensique"></div>
+                        <p class="mt-3 text-muted">Memuat produk...</p>
+                    </div>
+                </div>
+
+                <!-- Paginasi -->
+                <nav class="mt-4">
+                    <ul class="pagination justify-content-center" id="pagination"></ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer-lensique">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lensique. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/public/js/app.js"></script>
+    <script>
+        // ============================================
+        // SCRIPT HALAMAN KATALOG PRODUK
+        // ============================================
+
+        let currentPage = 1;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Cek parameter URL untuk filter kategori
+            const urlParams = new URLSearchParams(window.location.search);
+            const categoryParam = urlParams.get('category');
+            if (categoryParam) {
+                document.getElementById('categoryFilter').value = categoryParam;
+            }
+
+            await loadCategories();
+            await loadProducts();
+        });
+
+        // Pencarian saat tekan Enter
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loadProducts();
+        });
+
+        // Muat daftar kategori ke dropdown filter
+        async function loadCategories() {
+            try {
+                const data = await fetchAPI('/katalog/kategori');
+                if (data.success) {
+                    const select = document.getElementById('categoryFilter');
+                    const currentVal = select.value;
+                    data.data.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat.id;
+                        option.textContent = cat.name;
+                        select.appendChild(option);
+                    });
+                    if (currentVal) select.value = currentVal;
+                }
+            } catch (e) {
+                console.error('Gagal memuat kategori');
+            }
+        }
+
+        // Muat produk dengan filter
+        async function loadProducts(page = 1) {
+            currentPage = page;
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-lensique"></div>
+                    <p class="mt-3 text-muted">Memuat produk...</p>
+                </div>
+            `;
+
+            const search = document.getElementById('searchInput').value;
+            const category = document.getElementById('categoryFilter').value;
+            const sort = document.getElementById('sortFilter').value;
+
+            let url = `/katalog/produk?page=${page}&limit=12`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (category) url += `&category=${category}`;
+            if (sort) url += `&sort=${sort}`;
+
+            try {
+                const data = await fetchAPI(url);
+                if (data.success && data.data.length > 0) {
+                    grid.innerHTML = data.data.map(product => `
+                        <div class="col-6 col-md-4">
+                            <div class="card card-product">
+                                <div class="position-relative">
+                                    <img src="${product.image_url || '/public/img/no-image.svg'}" 
+                                         class="card-img-top" 
+                                         alt="${product.name}"
+                                         onerror="this.src='/public/img/no-image.svg'">
+                                    ${isLoggedIn() ? `
+                                    <button class="btn-wishlist position-absolute" 
+                                            style="top: 10px; right: 10px;"
+                                            onclick="toggleWishlist(${product.id}, this)">
+                                        <i class="bi bi-heart"></i>
+                                    </button>
+                                    ` : ''}
+                                </div>
+                                <div class="card-body">
+                                    <span class="badge-category">${product.category_name || 'Umum'}</span>
+                                    <h6 class="product-name mt-2">${product.name}</h6>
+                                    <p class="product-price mb-1">${formatRupiah(product.base_price)}</p>
+                                    <small class="product-stock">
+                                        ${product.stock > 0 
+                                            ? `<i class="bi bi-check-circle text-success"></i> Stok: ${product.stock}` 
+                                            : '<i class="bi bi-x-circle text-danger"></i> Habis'}
+                                    </small>
+                                    <div class="mt-2 d-flex gap-2">
+                                        <a href="/produk/${product.id}" class="btn btn-lensique btn-sm flex-grow-1">
+                                            <i class="bi bi-eye"></i> Detail
+                                        </a>
+                                        ${product.stock > 0 && isLoggedIn() ? `
+                                        <button class="btn btn-lensique-blue btn-sm" onclick="addToCart(${product.id})">
+                                            <i class="bi bi-cart-plus"></i>
+                                        </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+
+                    // Render paginasi
+                    renderPagination(data.pagination);
+                } else {
+                    grid.innerHTML = `
+                        <div class="empty-state">
+                            <i class="bi bi-search"></i>
+                            <h4>Produk Tidak Ditemukan</h4>
+                            <p>Coba ubah filter pencarian Anda.</p>
+                        </div>
+                    `;
+                    document.getElementById('pagination').innerHTML = '';
+                }
+            } catch (e) {
+                grid.innerHTML = '<p class="text-center text-muted">Gagal memuat produk.</p>';
+            }
+        }
+
+        // Render tombol paginasi
+        function renderPagination(pagination) {
+            const { page, totalPages } = pagination;
+            const paginationEl = document.getElementById('pagination');
+
+            if (totalPages <= 1) {
+                paginationEl.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+
+            // Tombol Previous
+            html += `<li class="page-item ${page <= 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="loadProducts(${page - 1})" style="border-radius: 12px 0 0 12px;">&laquo;</a>
+            </li>`;
+
+            // Nomor halaman
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === page || i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1)) {
+                    html += `<li class="page-item ${i === page ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="loadProducts(${i})"
+                           style="${i === page ? 'background: var(--soft-pink); border-color: var(--soft-pink); color: var(--dark-text);' : ''}">${i}</a>
+                    </li>`;
+                } else if (i === page - 2 || i === page + 2) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+            }
+
+            // Tombol Next
+            html += `<li class="page-item ${page >= totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="loadProducts(${page + 1})" style="border-radius: 0 12px 12px 0;">&raquo;</a>
+            </li>`;
+
+            paginationEl.innerHTML = html;
+        }
+
+        // Tambah ke keranjang cepat dari katalog
+        async function addToCart(productId) {
+            if (!isLoggedIn()) {
+                showAlert('Silakan login terlebih dahulu.', 'danger');
+                return;
+            }
+
+            const data = await fetchAPI('/keranjang/tambah', {
+                method: 'POST',
+                body: JSON.stringify({ product_id: productId, quantity: 1 })
+            });
+
+            if (data.success) {
+                showAlert('Produk ditambahkan ke keranjang!', 'success');
+                updateCartCount();
+            } else {
+                showAlert(data.message || 'Gagal menambahkan ke keranjang.', 'danger');
+            }
+        }
+
+        // Toggle wishlist
+        async function toggleWishlist(productId, btn) {
+            if (!isLoggedIn()) {
+                showAlert('Silakan login terlebih dahulu.', 'danger');
+                return;
+            }
+
+            const data = await fetchAPI('/wishlist/toggle', {
+                method: 'POST',
+                body: JSON.stringify({ product_id: productId })
+            });
+
+            if (data.success) {
+                const icon = btn.querySelector('i');
+                if (data.action === 'added') {
+                    icon.classList.replace('bi-heart', 'bi-heart-fill');
+                    btn.classList.add('active');
+                    showAlert('Ditambahkan ke wishlist!', 'success');
+                } else {
+                    icon.classList.replace('bi-heart-fill', 'bi-heart');
+                    btn.classList.remove('active');
+                    showAlert('Dihapus dari wishlist.', 'info');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
