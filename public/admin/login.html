@@ -32,9 +32,7 @@
     <script src="/admin/js/admin.js"></script>
     <script>
         // Redirect jika sudah login
-        if (!requireGuest()) {
-            // sudah redirect
-        }
+        requireGuest();
 
         document.getElementById('login-form').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -48,6 +46,12 @@
                 return;
             }
 
+            // Disable button while processing
+            const btn = this.querySelector('button[type="submit"]');
+            const origText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Memproses...';
+
             try {
                 const res = await fetch('/api/auth/login', {
                     method: 'POST',
@@ -58,23 +62,41 @@
 
                 if (!data.success) {
                     showAlert('alert-box', data.message || 'Login gagal.');
+                    btn.disabled = false;
+                    btn.textContent = origText;
                     return;
                 }
 
                 // Cek apakah admin
-                if (data.data.user.role_id !== 1) {
+                if (!data.data || !data.data.user || data.data.user.role_id !== 1) {
                     showAlert('alert-box', 'Akses ditolak. Hanya admin yang dapat masuk.');
+                    btn.disabled = false;
+                    btn.textContent = origText;
                     return;
                 }
+
+                // Clear any stale data first
+                removeToken();
 
                 // Simpan token dan user
                 setToken(data.data.token);
                 setUser(data.data.user);
 
-                window.location.href = '/admin/dashboard';
+                // Verify storage was successful
+                if (!getToken() || !getUser()) {
+                    showAlert('alert-box', 'Gagal menyimpan sesi. Coba lagi.');
+                    btn.disabled = false;
+                    btn.textContent = origText;
+                    return;
+                }
+
+                window.location.replace('/admin/dashboard');
 
             } catch (err) {
+                console.error('Login error:', err);
                 showAlert('alert-box', 'Terjadi kesalahan. Silakan coba lagi.');
+                btn.disabled = false;
+                btn.textContent = origText;
             }
         });
     </script>

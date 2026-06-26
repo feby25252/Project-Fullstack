@@ -43,18 +43,19 @@
 
     <script src="/admin/js/admin.js"></script>
     <script>
-        if (!requireAuth()) {}
+        if (!requireAuth()) { throw new Error('redirect'); }
         renderSidebar('reviews');
 
         let currentPage = 1;
 
         async function loadReviews(page = 1) {
             currentPage = page;
+            const tbody = document.getElementById('reviews-table');
+            tbody.innerHTML = '<tr><td colspan="7" class="loading">Memuat review...</td></tr>';
             try {
                 const data = await apiGet(`/api/admin/reviews?page=${page}&limit=10`);
-                const tbody = document.getElementById('reviews-table');
 
-                if (data.data.length === 0) {
+                if (!data.data || data.data.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Tidak ada review</td></tr>';
                 } else {
                     tbody.innerHTML = data.data.map(r => `
@@ -62,8 +63,8 @@
                             <td>${r.id}</td>
                             <td>${r.product_name || '-'}</td>
                             <td>${r.username || '-'}</td>
-                            <td><span class="badge badge-warning">${r.rating} ⭐</span></td>
-                            <td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.comment || '-'}</td>
+                            <td><span class="badge badge-warning">${r.rating} / 5</span></td>
+                            <td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${(r.comment || '').replace(/"/g, '&quot;')}">${r.comment || '-'}</td>
                             <td>${formatDate(r.created_at)}</td>
                             <td>
                                 <button class="btn btn-sm btn-danger" onclick="deleteReview(${r.id})">Hapus</button>
@@ -75,7 +76,7 @@
                 renderPagination('pagination', data.pagination.page, data.pagination.totalPages, 'loadReviews');
 
             } catch (err) {
-                document.getElementById('reviews-table').innerHTML = `<tr><td colspan="7" class="empty-state">${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Gagal memuat: ${err.message}</td></tr>`;
             }
         }
 
@@ -83,9 +84,10 @@
             if (!confirm('Yakin ingin menghapus review ini?')) return;
             try {
                 await apiDelete(`/api/admin/reviews/${id}`);
+                showNotification('Review berhasil dihapus!', 'success');
                 loadReviews(currentPage);
             } catch (err) {
-                alert(err.message);
+                showNotification('Gagal menghapus review: ' + err.message, 'error');
             }
         }
 

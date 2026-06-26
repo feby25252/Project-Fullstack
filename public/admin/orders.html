@@ -83,7 +83,7 @@
 
     <script src="/admin/js/admin.js"></script>
     <script>
-        if (!requireAuth()) {}
+        if (!requireAuth()) { throw new Error('redirect'); }
         renderSidebar('orders');
 
         let currentPage = 1;

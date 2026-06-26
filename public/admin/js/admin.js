@@ -44,7 +44,7 @@ function isAdmin() {
 function requireAuth() {
     if (!isLoggedIn() || !isAdmin()) {
         removeToken();
-        window.location.href = '/admin/login';
+        window.location.replace('/admin/login');
         return false;
     }
     return true;
@@ -53,7 +53,7 @@ function requireAuth() {
 // Redirect ke dashboard jika sudah login
 function requireGuest() {
     if (isLoggedIn() && isAdmin()) {
-        window.location.href = '/admin/dashboard';
+        window.location.replace('/admin/dashboard');
         return false;
     }
     return true;
@@ -137,12 +137,24 @@ async function apiPutForm(url, formData) {
 }
 
 async function handleResponse(res) {
-    const data = await res.json();
+    let data;
+    try {
+        data = await res.json();
+    } catch (parseErr) {
+        if (res.status === 401 || res.status === 403) {
+            removeToken();
+            window.location.replace('/admin/login');
+        }
+        throw new Error('Gagal memproses respons server.');
+    }
     if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
             removeToken();
-            window.location.href = '/admin/login';
+            window.location.replace('/admin/login');
         }
+        throw new Error(data.message || 'Terjadi kesalahan');
+    }
+    if (data.success === false) {
         throw new Error(data.message || 'Terjadi kesalahan');
     }
     return data;
@@ -160,6 +172,32 @@ function showAlert(id, message, type = 'error') {
     setTimeout(() => {
         el.classList.remove('show');
     }, 5000);
+}
+
+function showNotification(message, type = 'success') {
+    const existing = document.querySelector('.admin-notification');
+    if (existing) existing.remove();
+
+    const div = document.createElement('div');
+    div.className = 'admin-notification';
+    div.style.cssText = `
+        position: fixed; top: 20px; right: 20px; z-index: 9999;
+        padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 500;
+        background: ${type === 'success' ? '#D5F5E3' : type === 'error' ? '#FADADD' : '#FCF3CF'};
+        color: ${type === 'success' ? '#27AE60' : type === 'error' ? '#C0392B' : '#D68910'};
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1); animation: slideInNotif 0.3s ease;
+    `;
+    div.textContent = message;
+    document.body.appendChild(div);
+    setTimeout(() => { div.style.opacity = '0'; setTimeout(() => div.remove(), 300); }, 3000);
+}
+
+// Add notification animation
+if (!document.getElementById('notif-style')) {
+    const style = document.createElement('style');
+    style.id = 'notif-style';
+    style.textContent = '@keyframes slideInNotif { from { transform: translateX(100%); opacity:0; } to { transform: translateX(0); opacity:1; } }';
+    document.head.appendChild(style);
 }
 
 function hideAlert(id) {
@@ -194,8 +232,8 @@ function closeModal(id) {
 
 function renderSidebar(activePage) {
     const user = getUser();
-    const username = user ? user.username : 'Admin';
-    const role = user ? (user.role_name || 'Admin') : 'Admin';
+    const username = (user && user.username) ? user.username : 'Admin';
+    const role = (user && user.role_name) ? user.role_name : 'Admin';
     const initial = username.charAt(0).toUpperCase();
 
     const pages = [

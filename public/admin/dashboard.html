@@ -148,58 +148,62 @@
 
     <script src="/admin/js/admin.js"></script>
     <script>
-        if (!requireAuth()) {}
+        if (!requireAuth()) { throw new Error('redirect'); }
         renderSidebar('dashboard');
 
         async function loadDashboard() {
             try {
                 const [dashData, orderStats] = await Promise.all([
-                    apiGet('/api/admin/dashboard'),
-                    apiGet('/api/admin/orders/stats')
+                    apiGet('/api/admin/dashboard').catch(err => { console.error('Dashboard API error:', err); return null; }),
+                    apiGet('/api/admin/orders/stats').catch(err => { console.error('Order Stats error:', err); return null; })
                 ]);
 
-                const stats = dashData.data;
-                const oStats = orderStats.data;
+                if (dashData && dashData.data) {
+                    const stats = dashData.data;
 
-                document.getElementById('stat-users').textContent = stats.total_users;
-                document.getElementById('stat-products').textContent = stats.total_products;
-                document.getElementById('stat-orders').textContent = stats.total_orders;
-                document.getElementById('stat-reviews').textContent = stats.total_reviews;
-                document.getElementById('stat-revenue').textContent = formatRupiah(oStats.revenue);
-                document.getElementById('stat-lowstock').textContent = stats.low_stock_products.length;
+                    document.getElementById('stat-users').textContent = stats.total_users || 0;
+                    document.getElementById('stat-products').textContent = stats.total_products || 0;
+                    document.getElementById('stat-orders').textContent = stats.total_orders || 0;
+                    document.getElementById('stat-reviews').textContent = stats.total_reviews || 0;
+                    document.getElementById('stat-lowstock').textContent = stats.low_stock_products ? stats.low_stock_products.length : 0;
 
-                document.getElementById('stat-pending').textContent = oStats.pending;
-                document.getElementById('stat-processing').textContent = oStats.processing;
-                document.getElementById('stat-shipped').textContent = oStats.shipped;
-                document.getElementById('stat-delivered').textContent = oStats.delivered;
+                    // Low stock table
+                    const lowStockBody = document.getElementById('lowstock-table');
+                    if (!stats.low_stock_products || stats.low_stock_products.length === 0) {
+                        lowStockBody.innerHTML = '<tr><td colspan="3" class="empty-state">Tidak ada produk stok menipis</td></tr>';
+                    } else {
+                        lowStockBody.innerHTML = stats.low_stock_products.map(p => `
+                            <tr>
+                                <td>${p.name}</td>
+                                <td>${p.category_name || '-'}</td>
+                                <td><span class="status-pill" style="background:var(--soft-yellow);color:#D68910">${p.stock}</span></td>
+                            </tr>
+                        `).join('');
+                    }
 
-                // Low stock table
-                const lowStockBody = document.getElementById('lowstock-table');
-                if (stats.low_stock_products.length === 0) {
-                    lowStockBody.innerHTML = '<tr><td colspan="3" class="empty-state">Tidak ada produk stok menipis</td></tr>';
-                } else {
-                    lowStockBody.innerHTML = stats.low_stock_products.map(p => `
-                        <tr>
-                            <td>${p.name}</td>
-                            <td>${p.category_name || '-'}</td>
-                            <td><span class="status-pill" style="background:var(--soft-yellow);color:#D68910">${p.stock}</span></td>
-                        </tr>
-                    `).join('');
+                    // Recent orders
+                    const ordersBody = document.getElementById('orders-table');
+                    if (!stats.recent_orders || stats.recent_orders.length === 0) {
+                        ordersBody.innerHTML = '<tr><td colspan="4" class="empty-state">Belum ada pesanan</td></tr>';
+                    } else {
+                        ordersBody.innerHTML = stats.recent_orders.map(o => `
+                            <tr style="cursor:pointer" onclick="window.location.href='/admin/orders/${o.id}'">
+                                <td><strong>${o.order_number}</strong></td>
+                                <td>${o.username || '-'}</td>
+                                <td>${formatRupiah(o.total_amount)}</td>
+                                <td><span class="status-pill" style="background:var(--baby-blue);color:#2874A6">${o.status}</span></td>
+                            </tr>
+                        `).join('');
+                    }
                 }
 
-                // Recent orders
-                const ordersBody = document.getElementById('orders-table');
-                if (stats.recent_orders.length === 0) {
-                    ordersBody.innerHTML = '<tr><td colspan="4" class="empty-state">Belum ada pesanan</td></tr>';
-                } else {
-                    ordersBody.innerHTML = stats.recent_orders.map(o => `
-                        <tr style="cursor:pointer" onclick="window.location.href='/admin/orders/${o.id}'">
-                            <td><strong>${o.order_number}</strong></td>
-                            <td>${o.username || '-'}</td>
-                            <td>${formatRupiah(o.total_amount)}</td>
-                            <td><span class="status-pill" style="background:var(--baby-blue);color:#2874A6">${o.status}</span></td>
-                        </tr>
-                    `).join('');
+                if (orderStats && orderStats.data) {
+                    const oStats = orderStats.data;
+                    document.getElementById('stat-revenue').textContent = formatRupiah(oStats.revenue);
+                    document.getElementById('stat-pending').textContent = oStats.pending || 0;
+                    document.getElementById('stat-processing').textContent = oStats.processing || 0;
+                    document.getElementById('stat-shipped').textContent = oStats.shipped || 0;
+                    document.getElementById('stat-delivered').textContent = oStats.delivered || 0;
                 }
 
             } catch (err) {

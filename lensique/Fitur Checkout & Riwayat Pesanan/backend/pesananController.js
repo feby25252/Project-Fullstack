@@ -18,7 +18,7 @@ const getOrders = async (req, res) => {
             SELECT o.*, 
                    (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count,
                    p.payment_status,
-                   s.shipping_status, s.tracking_number
+                   COALESCE(s.shipping_status, s.status) AS shipping_status, s.tracking_number
             FROM orders o
             LEFT JOIN payments p ON o.id = p.order_id
             LEFT JOIN shipping_info s ON o.id = s.order_id
@@ -87,11 +87,12 @@ const getOrderDetail = async (req, res) => {
 
         // Ambil item pesanan
         const [items] = await db.query(
-            `SELECT oi.*, p.name,
+            `SELECT oi.*, p.name, c.name AS category_name,
                     (SELECT pi.image_url FROM product_images pi 
                      WHERE pi.product_id = p.id AND pi.is_primary = 1 LIMIT 1) AS image_url
              FROM order_items oi
              JOIN products p ON oi.product_id = p.id
+             LEFT JOIN categories c ON p.category_id = c.id
              WHERE oi.order_id = ?`,
             [id]
         );

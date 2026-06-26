@@ -124,6 +124,15 @@ const createProduct = async (req, res) => {
             });
         }
 
+        // Validasi category_id: pastikan kategori ada di database
+        let validCategoryId = null;
+        if (category_id && parseInt(category_id) > 0) {
+            const [catCheck] = await db.query('SELECT id FROM categories WHERE id = ?', [parseInt(category_id)]);
+            if (catCheck.length > 0) {
+                validCategoryId = catCheck[0].id;
+            }
+        }
+
         // Buat slug dari nama produk
         const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
@@ -131,7 +140,7 @@ const createProduct = async (req, res) => {
         const [result] = await db.query(
             `INSERT INTO products (name, slug, description, base_price, stock, category_id, is_active, created_at) 
              VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-            [name, slug, description, parseFloat(base_price), parseInt(stock) || 0, category_id || null, is_active !== undefined ? is_active : 1]
+            [name, slug, description, parseFloat(base_price), parseInt(stock) || 0, validCategoryId, is_active !== undefined ? is_active : 1]
         );
 
         const productId = result.insertId;
@@ -193,6 +202,18 @@ const updateProduct = async (req, res) => {
         const oldProduct = existing[0];
         const slug = name ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : oldProduct.slug;
 
+        // Validasi category_id jika diberikan
+        let finalCategoryId = oldProduct.category_id;
+        if (category_id !== undefined && category_id !== '') {
+            const parsedCatId = parseInt(category_id);
+            if (parsedCatId > 0) {
+                const [catCheck] = await db.query('SELECT id FROM categories WHERE id = ?', [parsedCatId]);
+                if (catCheck.length > 0) {
+                    finalCategoryId = catCheck[0].id;
+                }
+            }
+        }
+
         // Update data produk
         await db.query(
             `UPDATE products SET name = ?, slug = ?, description = ?, base_price = ?, 
@@ -203,7 +224,7 @@ const updateProduct = async (req, res) => {
                 description !== undefined ? description : oldProduct.description,
                 base_price ? parseFloat(base_price) : oldProduct.base_price,
                 stock !== undefined ? parseInt(stock) : oldProduct.stock,
-                category_id || oldProduct.category_id,
+                finalCategoryId,
                 is_active !== undefined ? is_active : oldProduct.is_active,
                 id
             ]

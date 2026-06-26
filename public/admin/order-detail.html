@@ -153,7 +153,7 @@
 
     <script src="/admin/js/admin.js"></script>
     <script>
-        if (!requireAuth()) {}
+        if (!requireAuth()) { throw new Error('redirect'); }
         renderSidebar('orders');
 
         const orderId = window.location.pathname.split('/').pop();
@@ -163,7 +163,7 @@
             try {
                 const data = await apiGet(`/api/admin/orders/${orderId}`);
                 if (!data.success) {
-                    showAlert('Gagal memuat pesanan: ' + data.message);
+                    showNotification('Gagal memuat pesanan: ' + data.message, 'error');
                     return;
                 }
 
@@ -235,7 +235,7 @@
                 });
 
             } catch (err) {
-                showAlert('Gagal memuat detail pesanan: ' + err.message);
+                showNotification('Gagal memuat detail pesanan: ' + err.message, 'error');
             }
         }
 
@@ -251,10 +251,10 @@
 
             try {
                 await apiPut(`/api/admin/orders/${orderId}/status`, payload);
-                showAlert('Status pesanan berhasil diperbarui!', 'success');
+                showNotification('Status pesanan berhasil diperbarui!', 'success');
                 loadOrderDetail();
             } catch (err) {
-                showAlert('Gagal memperbarui status: ' + err.message);
+                showNotification('Gagal memperbarui status: ' + err.message, 'error');
             }
         }
 

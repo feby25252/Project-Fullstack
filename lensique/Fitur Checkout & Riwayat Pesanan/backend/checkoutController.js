@@ -122,8 +122,8 @@ const processCheckout = async (req, res) => {
 
         // Simpan info pengiriman ke tabel shipping_info
         await connection.query(
-            `INSERT INTO shipping_info (order_id, courier, tracking_number, status, created_at) 
-             VALUES (?, ?, ?, 'pending', NOW())`,
+            `INSERT INTO shipping_info (order_id, courier, tracking_number, status, shipping_status, created_at) 
+             VALUES (?, ?, ?, 'pending', 'pending', NOW())`,
             [orderId, 'Belum ditentukan', null]
         );
 

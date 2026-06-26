@@ -26,10 +26,12 @@ const getAllOrdersAdmin = async (req, res) => {
             SELECT o.id, o.order_number, o.total_amount, o.status, o.order_status,
                    o.shipping_address, o.payment_method, o.created_at, o.updated_at,
                    u.id AS user_id, u.username, u.email,
+                   up.full_name,
                    p.payment_status, p.verified_at,
-                   s.shipping_status, s.tracking_number, s.courier
+                   COALESCE(s.shipping_status, s.status) AS shipping_status, s.tracking_number, s.courier
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
+            LEFT JOIN user_profile up ON u.id = up.user_id
             LEFT JOIN payments p ON o.id = p.order_id
             LEFT JOIN shipping_info s ON o.id = s.order_id
             WHERE 1=1
@@ -50,7 +52,7 @@ const getAllOrdersAdmin = async (req, res) => {
 
         // Filter berdasarkan status pengiriman
         if (shipping_status) {
-            query += ' AND s.shipping_status = ?';
+            query += ' AND s.status = ?';
             params.push(shipping_status);
         }
 
@@ -100,9 +102,10 @@ const getOrderByIdAdmin = async (req, res) => {
 
         // Ambil data pesanan + user
         const [orders] = await db.query(
-            `SELECT o.*, u.username, u.email, u.full_name
+            `SELECT o.*, u.username, u.email, up.full_name
              FROM orders o
              LEFT JOIN users u ON o.user_id = u.id
+             LEFT JOIN user_profile up ON u.id = up.user_id
              WHERE o.id = ?`,
             [id]
         );
@@ -118,11 +121,12 @@ const getOrderByIdAdmin = async (req, res) => {
 
         // Ambil item pesanan
         const [items] = await db.query(
-            `SELECT oi.*, p.name, p.base_price,
+            `SELECT oi.*, p.name, p.base_price, c.name AS category_name,
                     (SELECT pi.image_url FROM product_images pi 
                      WHERE pi.product_id = p.id AND pi.is_primary = 1 LIMIT 1) AS image_url
              FROM order_items oi
              JOIN products p ON oi.product_id = p.id
+             LEFT JOIN categories c ON p.category_id = c.id
              WHERE oi.order_id = ?`,
             [id]
         );
@@ -163,6 +167,29 @@ const getOrderByIdAdmin = async (req, res) => {
 // ============================================
 // UPDATE STATUS PESANAN - Admin update
 // ============================================
+
+// Map admin order status values to valid ENUM values for orders.status column
+const ORDER_STATUS_ENUM_MAP = {
+    'pending': 'pending',
+    'paid': 'processing',
+    'processing': 'processing',
+    'packed': 'processing',
+    'shipped': 'shipped',
+    'delivered': 'delivered',
+    'cancelled': 'cancelled'
+};
+
+// Map admin shipping status values to valid ENUM values for shipping_info.status column
+const SHIPPING_STATUS_ENUM_MAP = {
+    'waiting': 'pending',
+    'pending': 'pending',
+    'sent': 'shipped',
+    'shipped': 'shipped',
+    'in_transit': 'in_transit',
+    'received': 'delivered',
+    'delivered': 'delivered'
+};
+
 const updateOrderStatus = async (req, res) => {
     try {
         const { id } = req.params;
@@ -193,9 +220,11 @@ const updateOrderStatus = async (req, res) => {
 
             // Update status pesanan jika diberikan
             if (order_status) {
+                // Map to valid ENUM for orders.status, store exact value in order_status
+                const enumStatus = ORDER_STATUS_ENUM_MAP[order_status] || order_status;
                 await connection.query(
                     'UPDATE orders SET status = ?, order_status = ?, updated_at = NOW() WHERE id = ?',
-                    [order_status, order_status, id]
+                    [enumStatus, order_status, id]
                 );
             }
 
@@ -215,6 +244,11 @@ const updateOrderStatus = async (req, res) => {
                 const params = [];
 
                 if (shipping_status) {
+                    // Map to valid ENUM for shipping_info.status column
+                    const enumShipping = SHIPPING_STATUS_ENUM_MAP[shipping_status] || shipping_status;
+                    updates.push('status = ?');
+                    params.push(enumShipping);
+                    // Also store in shipping_status VARCHAR column for detailed tracking
                     updates.push('shipping_status = ?');
                     params.push(shipping_status);
                 }
@@ -233,9 +267,23 @@ const updateOrderStatus = async (req, res) => {
                 updates.push('updated_at = NOW()');
 
                 if (updates.length > 0) {
-                    const query = `UPDATE shipping_info SET ${updates.join(', ')} WHERE order_id = ?`;
-                    params.push(id);
-                    await connection.query(query, params);
+                    // Check if shipping_info record exists for this order
+                    const [existingShipping] = await connection.query(
+                        'SELECT id FROM shipping_info WHERE order_id = ?', [id]
+                    );
+                    if (existingShipping.length > 0) {
+                        const query = `UPDATE shipping_info SET ${updates.join(', ')} WHERE order_id = ?`;
+                        params.push(id);
+                        await connection.query(query, params);
+                    } else {
+                        // Insert shipping_info if it doesn't exist
+                        const enumShipping = SHIPPING_STATUS_ENUM_MAP[shipping_status] || shipping_status || 'pending';
+                        await connection.query(
+                            `INSERT INTO shipping_info (order_id, courier, tracking_number, status, shipping_status, admin_notes, created_at)
+                             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+                            [id, courier || null, tracking_number || null, enumShipping, shipping_status || null, admin_notes || null]
+                        );
+                    }
                 }
             }
 

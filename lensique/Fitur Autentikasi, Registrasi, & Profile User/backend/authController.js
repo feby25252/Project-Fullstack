@@ -95,14 +95,30 @@ const login = async (req, res) => {
             });
         }
 
-        // Cari user berdasarkan email, join dengan tabel roles
-        const [users] = await db.query(
-            `SELECT u.id, u.username, u.email, u.password_hash, u.role_id, u.is_active, r.role_name 
-             FROM users u 
-             LEFT JOIN roles r ON u.role_id = r.id 
-             WHERE u.email = ?`,
-            [email]
-        );
+        // Cari user berdasarkan email
+        // Menggunakan subquery untuk role_name agar tidak error jika tabel roles belum ada
+        // Menggunakan COALESCE untuk is_active agar kompatibel jika kolom belum ada
+        let users;
+        try {
+            [users] = await db.query(
+                `SELECT u.id, u.username, u.email, u.password_hash, u.role_id,
+                        COALESCE(u.is_active, 1) AS is_active,
+                        (SELECT r.role_name FROM roles r WHERE r.id = u.role_id) AS role_name
+                 FROM users u
+                 WHERE u.email = ?`,
+                [email]
+            );
+        } catch (dbErr) {
+            // Fallback: jika kolom is_active belum ada, query tanpa kolom tersebut
+            [users] = await db.query(
+                `SELECT u.id, u.username, u.email, u.password_hash, u.role_id,
+                        1 AS is_active,
+                        (SELECT r.role_name FROM roles r WHERE r.id = u.role_id) AS role_name
+                 FROM users u
+                 WHERE u.email = ?`,
+                [email]
+            );
+        }
 
         if (users.length === 0) {
             return res.status(401).json({
@@ -131,8 +147,15 @@ const login = async (req, res) => {
             });
         }
 
-        // Update last_login
-        await db.query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
+        // Update last_login (gunakan try-catch agar tidak gagal jika kolom belum ada)
+        try {
+            await db.query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
+        } catch (e) {
+            // Abaikan jika kolom last_login belum ada
+        }
+
+        // Default role_name jika null (misalnya tabel roles belum terisi)
+        const roleName = user.role_name || (user.role_id === 1 ? 'admin' : 'member');
 
         // Buat token JWT
         const token = jwt.sign(
@@ -141,7 +164,7 @@ const login = async (req, res) => {
                 username: user.username,
                 email: user.email,
                 role_id: user.role_id,
-                role_name: user.role_name
+                role_name: roleName
             },
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
@@ -157,7 +180,7 @@ const login = async (req, res) => {
                     username: user.username,
                     email: user.email,
                     role_id: user.role_id,
-                    role_name: user.role_name
+                    role_name: roleName
                 }
             }
         });

@@ -78,3 +78,39 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_status VARCHAR(50);
 
 -- Update order_status dari status yang sudah ada
 UPDATE orders SET order_status = status WHERE order_status IS NULL;
+
+-- --------------------------------------------
+-- Tabel shipping_info - Tambah kolom shipping_status
+-- --------------------------------------------
+-- Kolom shipping_status sebagai alias VARCHAR dari kolom status (ENUM)
+-- Ini memungkinkan penyimpanan status detail tanpa batasan ENUM
+ALTER TABLE shipping_info ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(50);
+
+-- Update shipping_status dari status yang sudah ada
+UPDATE shipping_info SET shipping_status = status WHERE shipping_status IS NULL;
+
+-- --------------------------------------------
+-- Tabel products - Pastikan category_id terisi
+-- --------------------------------------------
+-- Set category_id default (1 = Kacamata Minus) untuk produk tanpa kategori
+UPDATE products SET category_id = (SELECT id FROM categories LIMIT 1) WHERE category_id IS NULL AND (SELECT COUNT(*) FROM categories) > 0;
+
+-- --------------------------------------------
+-- Pastikan roles table ada dan terisi
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS roles (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    role_name VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT IGNORE INTO roles (id, role_name) VALUES (1, 'admin'), (2, 'member');
+
+-- --------------------------------------------
+-- Pastikan admin default ada
+-- --------------------------------------------
+-- Buat admin default jika belum ada (password: admin123)
+-- Hash bcrypt untuk 'admin123': $2a$10$placeholder (akan di-generate saat runtime)
+-- Jalankan query ini secara manual jika perlu:
+-- INSERT IGNORE INTO users (username, email, password_hash, role_id, is_active, created_at)
+-- VALUES ('admin', 'admin@lensique.com', '$2a$10$...', 1, 1, NOW());

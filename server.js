@@ -237,6 +237,71 @@ app.use(globalErrorHandler);
 // JALANKAN SERVER
 // ============================================
 
+async function autoMigrate() {
+    try {
+        // Pastikan kolom-kolom penting ada (tanpa error jika sudah ada)
+        const migrations = [
+            // users table
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TINYINT(1) DEFAULT 1",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP NULL",
+            // user_profile table
+            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255)",
+            // orders table
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_status VARCHAR(50)",
+            // payments table
+            "ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_by INT",
+            "ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP NULL",
+            // shipping_info table
+            "ALTER TABLE shipping_info ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "ALTER TABLE shipping_info ADD COLUMN IF NOT EXISTS admin_notes TEXT",
+            "ALTER TABLE shipping_info ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(50)",
+            // reviews table
+            "ALTER TABLE reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            // inventory_log table
+            "ALTER TABLE inventory_log ADD COLUMN IF NOT EXISTS old_stock INT DEFAULT 0",
+            "ALTER TABLE inventory_log ADD COLUMN IF NOT EXISTS new_stock INT DEFAULT 0",
+            "ALTER TABLE inventory_log ADD COLUMN IF NOT EXISTS changed_by INT",
+            "ALTER TABLE inventory_log ADD COLUMN IF NOT EXISTS changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        ];
+
+        for (const sql of migrations) {
+            try {
+                await db.query(sql);
+            } catch (e) {
+                // Abaikan error jika tabel belum ada (akan dibuat saat schema.sql dijalankan)
+                if (!e.code || !e.code.startsWith('ER_NO_SUCH_TABLE')) {
+                    console.warn('Migration warning:', e.message);
+                }
+            }
+        }
+
+        // Sync order_status dari status yang ada
+        try {
+            await db.query("UPDATE orders SET order_status = status WHERE order_status IS NULL");
+        } catch (e) { /* abaikan */ }
+
+        // Sync shipping_status dari status yang ada
+        try {
+            await db.query("UPDATE shipping_info SET shipping_status = status WHERE shipping_status IS NULL");
+        } catch (e) { /* abaikan */ }
+
+        // Pastikan roles table ada
+        try {
+            await db.query("CREATE TABLE IF NOT EXISTS roles (id INT PRIMARY KEY AUTO_INCREMENT, role_name VARCHAR(50) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+            await db.query("INSERT IGNORE INTO roles (id, role_name) VALUES (1, 'admin'), (2, 'member')");
+        } catch (e) { /* abaikan */ }
+
+        // Pastikan semua produk punya category_id
+        try {
+            await db.query("UPDATE products SET category_id = (SELECT id FROM categories LIMIT 1) WHERE category_id IS NULL AND (SELECT COUNT(*) FROM categories) > 0");
+        } catch (e) { /* abaikan */ }
+
+        console.log('Auto-migration selesai.');
+    } catch (error) {
+        console.warn('Auto-migration tidak dapat dijalankan sepenuhnya:', error.message);
+    }
+}
+
 async function startServer() {
     // Verifikasi koneksi database sebelum menjalankan server
     console.log('Memverifikasi koneksi database...');
@@ -247,6 +312,9 @@ async function startServer() {
         console.error('Error:', dbStatus.error);
         process.exit(1);
     }
+
+    // Jalankan auto-migration
+    await autoMigrate();
 
     app.listen(PORT, () => {
         console.log(`Server Lensique berjalan di http://localhost:${PORT}`);
