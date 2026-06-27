@@ -1,0 +1,26 @@
+{
+  "buildCommand": "",
+  "devCommand": "npm run dev",
+  "rewrites": [
+    {
+      "source": "/public/:path*",
+      "destination": "/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.js"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/public/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}

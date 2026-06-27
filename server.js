@@ -3,6 +3,7 @@
 // ============================================
 // File ini adalah entry point utama aplikasi
 // Menginisialisasi Express server dan semua route
+// Backend ini berfungsi sebagai REST API untuk frontend React
 
 require('dotenv').config();
 const express = require('express');
@@ -10,6 +11,15 @@ const cors = require('cors');
 const path = require('path');
 const db = require('./config/database');
 const { multerErrorHandler, validationErrorHandler, databaseErrorHandler, jwtErrorHandler, globalErrorHandler } = require('./middleware/errorHandler');
+
+// ============================================
+// ENVIRONMENT DETECTION
+// ============================================
+const IS_VERCEL = !!process.env.VERCEL;
+const UPLOAD_DIR = IS_VERCEL
+    ? '/tmp/uploads'
+    : path.join(__dirname, 'uploads');
+let _migrationRan = false;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,7 +41,25 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Menyajikan file upload produk
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+// ============================================
+// LAZY AUTO-MIGRATION (VERCEL ONLY)
+// ============================================
+// On Vercel, run migrations on first request instead of at startup.
+// This prevents the serverless function from crashing if DB is
+// temporarily unreachable during cold start.
+if (IS_VERCEL) {
+    app.use(async (req, res, next) => {
+        if (!_migrationRan) {
+            _migrationRan = true;
+            try { await autoMigrate(); } catch (e) {
+                console.warn('Auto-migration skipped on Vercel:', e.message);
+            }
+        }
+        next();
+    });
+}
 
 // ============================================
 // IMPORT ROUTES DARI SETIAP FITUR
@@ -83,121 +111,6 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', reviewRoutes);
 app.use('/api/orders', orderRoutes);
-
-// ============================================
-// ROUTE HALAMAN FRONTEND
-// ============================================
-
-// Halaman utama (Home)
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Halaman Login
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Autentikasi, Registrasi, & Profile User', 'frontend', 'login.html'));
-});
-
-// Halaman Register
-app.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Autentikasi, Registrasi, & Profile User', 'frontend', 'register.html'));
-});
-
-// Halaman Profile
-app.get('/profile', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Autentikasi, Registrasi, & Profile User', 'frontend', 'profile.html'));
-});
-
-// Halaman Katalog Produk
-app.get('/katalog', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Katalog Produk (Admin)', 'frontend', 'katalog.html'));
-});
-
-// Halaman Detail Produk
-app.get('/produk/:id', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Katalog Produk (Admin)', 'frontend', 'detail-produk.html'));
-});
-
-// Halaman Admin Kelola Produk
-app.get('/admin/produk', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Manajemen Produk (admin)', 'frontend', 'kelola-produk.html'));
-});
-
-// Halaman Admin Tambah/Edit Produk
-app.get('/admin/produk/form', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Manajemen Produk (admin)', 'frontend', 'form-produk.html'));
-});
-
-// ============================================
-// ROUTE HALAMAN ADMIN PANEL (BARU)
-// ============================================
-
-// Static files untuk admin panel
-app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
-
-// Halaman Admin Login
-app.get('/admin/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin', 'login.html'));
-});
-
-// Halaman Admin Dashboard
-app.get('/admin/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin', 'dashboard.html'));
-});
-
-// Halaman Admin Users
-app.get('/admin/users', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin', 'users.html'));
-});
-
-// Halaman Admin Products
-app.get('/admin/products', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin', 'products.html'));
-});
-
-// Halaman Admin Reviews
-app.get('/admin/reviews', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin', 'reviews.html'));
-});
-
-// Halaman Admin Orders
-app.get('/admin/orders', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin', 'orders.html'));
-});
-
-// Halaman Admin Order Detail
-app.get('/admin/orders/:id', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin', 'order-detail.html'));
-});
-
-// Halaman Keranjang
-app.get('/keranjang', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Keranjang Belanja', 'frontend', 'keranjang.html'));
-});
-
-// Halaman Checkout
-app.get('/checkout', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Checkout & Riwayat Pesanan', 'frontend', 'checkout.html'));
-});
-
-// Halaman Riwayat Pesanan
-app.get('/pesanan', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Checkout & Riwayat Pesanan', 'frontend', 'riwayat-pesanan.html'));
-});
-
-// Halaman Detail Pesanan User
-app.get('/user/orders', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'user', 'orders.html'));
-});
-
-app.get('/user/orders/:id', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'user', 'order-detail.html'));
-});
-
-// Halaman Wishlist
-app.get('/wishlist', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lensique', 'Fitur Katalog Produk (Admin)', 'frontend', 'wishlist.html'));
-});
 
 // ============================================
 // HEALTH CHECK & DB STATUS
@@ -302,6 +215,12 @@ async function autoMigrate() {
     }
 }
 
+// ============================================
+// SERVER STARTUP (LOCALHOST ONLY)
+// ============================================
+// On Vercel, the serverless runtime handles request routing.
+// app.listen() and process.exit() must NOT run in serverless.
+
 async function startServer() {
     // Verifikasi koneksi database sebelum menjalankan server
     console.log('Memverifikasi koneksi database...');
@@ -315,6 +234,7 @@ async function startServer() {
 
     // Jalankan auto-migration
     await autoMigrate();
+    _migrationRan = true;
 
     app.listen(PORT, () => {
         console.log(`Server Lensique berjalan di http://localhost:${PORT}`);
@@ -322,6 +242,8 @@ async function startServer() {
     });
 }
 
-startServer();
+if (!IS_VERCEL) {
+    startServer();
+}
 
 module.exports = app;
