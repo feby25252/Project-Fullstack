@@ -3,15 +3,45 @@
 // ============================================
 // Mengatur penyimpanan file upload produk
 // Mendukung format gambar: jpg, jpeg, png, gif, webp
+// On Vercel, uses /tmp (only writable directory in serverless)
 
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+
+// Detect serverless environment
+const IS_VERCEL = !!process.env.VERCEL;
+
+// On Vercel, only /tmp is writable; on localhost/Railway, use project uploads/ directory
+const uploadBase = IS_VERCEL
+    ? '/tmp/uploads'
+    : path.join(__dirname, '..', 'uploads');
+const uploadDir = path.join(uploadBase, 'products');
+
+// Ensure upload directory exists (create if missing).
+// On platforms like Railway, a mounted volume may not be fully ready
+// at module-load time, so this is a best-effort attempt; the real
+// guarantee happens in the `destination` function below, on every request.
+try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('Upload directory ready at startup:', uploadDir);
+} catch (e) {
+    console.warn('Could not create upload directory at startup:', e.message);
+}
 
 // Konfigurasi penyimpanan file
 const storage = multer.diskStorage({
     // Tentukan folder tujuan upload
     destination: function (req, file, cb) {
-        cb(null, path.join(__dirname, '..', 'uploads', 'products'));
+        // Re-ensure directory exists on every request (handles volumes/tmp
+        // that may not have been ready when this file was first loaded).
+        try {
+            fs.mkdirSync(uploadDir, { recursive: true });
+            cb(null, uploadDir);
+        } catch (e) {
+            console.error('FATAL: cannot create/access upload directory:', uploadDir, e.message);
+            cb(e);
+        }
     },
     // Tentukan nama file (timestamp + nama asli)
     filename: function (req, file, cb) {
